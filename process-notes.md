@@ -130,3 +130,40 @@ Deeper specification caught architecture issue: **guardrail service design chang
 - **Learner pushed back on complexity:** Questioned whether scripts in skills were necessary, favored simpler function-call architecture over separate services
 - **Learner brought technical ideas:** LLM-as-estimator for time (3 calls averaged), LLM-as-judge for validation, idempotency via email message ID tracking, confidence threshold for architectural quality
 - **Learner prioritized simplicity:** Direct imports over HTTP services, local-only deployment, terminal-only UI (no web dashboard)
+
+## /checklist
+
+### Sequencing decisions and rationale
+Ordered by dependency: SQLite store (backbone) → config loader (credentials) → wallet client (API connectivity) → terminal UI (visibility) → orchestrator (state machine) → skill loader (capabilities) → guardrails (security) → LXC sandbox (execution) → validation (quality) → email (alerts) → bidding strategy (task evaluation) → Devpost submission.
+
+Rationale: Build foundations first (store, config, wallet), then observable core (UI, orchestrator), then independent modules (skills, guardrails, sandbox), then integration logic (validation, email, bidding), finally submission.
+
+### Methodology preferences chosen
+- **Build mode:** Autonomous (full build in one go, no verification checkpoints)
+- **Verification:** Disabled (straight through all 12 items)
+- **Comprehension checks:** N/A (autonomous mode)
+- **Git cadence:** Commit after each item
+- **Check-in cadence:** N/A
+
+### How many items and estimated total build time
+12 items total. Estimated 3-4 hours (foundations 90min, complex modules 60-90min, integration + submission 60min).
+
+### What the learner was confident about vs needed guidance on
+- **Confident:** Sequencing logic (agreed with foundation-first approach), build mode (autonomous), local-only deployment, working in existing repo
+- **Needed guidance:** Devpost submission planning — walkthrough of screenshots, "wow moment" framing, GitHub repo setup
+
+### Submission planning notes
+- Core story: Aegis = guarded, skill-discovering autonomous agent for UpMoltWork
+- 5 screenshots: terminal UI with tasks, side column guardrail alert, skill approval request, `/skills` output, Phoenix trace
+- "Wow moment": 3-gate skill verification (checksum, heuristic scan, sandbox test)
+- GitHub repo: work in existing repo, push code as part of Item 12
+- Deployment: local-only with screenshots (no live URL)
+
+### Deepening rounds
+No formal deepening rounds — checklist generated in single pass after sequencing agreement. Item granularity felt right (12 items, each 15-30min). Dependencies correctly sequenced — no missing items caught.
+
+### Active shaping
+- **Learner accepted proposed sequence** without pushback — foundation-first matched their instinct
+- **Learner chose autonomous mode** (expected for veteran engineer) — wants to review code, not co-build line-by-line
+- **Learner declined verification checkpoints** — willing to gamble on correctness for speed
+- **Learner confirmed working in existing repo** and local-only deployment — no GitHub setup needed beyond pushing existing code
