@@ -87,6 +87,14 @@ Each item references a specific `spec.md` subsection and maps to PRD epics.
   Verify: Call `evaluate_task(mock_task)` and confirm it returns skill_fit, points_to_effort, confidence. Call `calculate_bid(mock_task)` and confirm it returns price_points, estimated_minutes (integer from 3-call average), proposed_approach.
 
 - [x] **12. Devpost Submission Preparation**
+Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`
+  What to build: Replace stub in `src/alerts/email.py` with actual IMAP implementation. Connect to IMAP server using credentials from vault. Poll every 60 seconds. Parse subject lines for commands (`/approve`, `/halt`, `/force-approve`). Execute commands via `src/cli/commands.py`. Track processed message IDs for idempotency. Send alerts via IMAP.
+  Acceptance: IMAP connection works. Commands parsed from subject lines. Commands executed idempotently (no replays — message ID tracking). Alerts sent via email.
+  Verify: Configure `.env` with IMAP credentials. Run agent. Send email with subject "Aegis: /approve test-skill". Confirm command executed within 60s. Send same email again and confirm it's ignored (idempotency).
+  Spec ref: `spec.md > Architecture Overview` (for project description) and `docs/prd.md` (for user stories)
+  What to build: Prepare Devpost submission page: (1) Write compelling project description based on scope + PRD. (2) Take 5 screenshots: terminal UI with tasks, side column guardrail alert, skill approval request, `/skills` command output, Phoenix trace view. (3) Create GitHub repo if not exists, commit all code, push to GitHub. (4) Prepare submission narrative: core story, "wow moment" (3-gate skill verification), technical approach. (5) Optional: record 2-min demo video.
+  Acceptance: Devpost submission page complete with description, 5+ screenshots, GitHub repo link, core story, and "wow moment" clearly articulated. Code pushed to GitHub.
+  Verify: Open Devpost submission page in browser and confirm all sections filled. Click GitHub link and confirm code is accessible. Review screenshots and confirm they show key features.
 
 ## Iteration 1 — Stub Implementation
 
