@@ -45,3 +45,38 @@ No formal deepening rounds — architecture emerged through iterative discussion
 - User recognized dynamic skill discovery as the "wow factor" vs. just architectural preference
 - User pushed back on scope creep — custom skill generation explicitly deferred
 - User prioritized security (3-gate trust model) over convenience
+
+## /prd
+
+### What the learner added or changed vs the scope doc
+- **Terminal UI layout specified:** Main view (tasks, phases), side column (error details), bottom status (counts), prompt (slash commands) — learner made these decisions during PRD conversation
+- **Email alert channel added:** Low-cost async alerts via SendGrid + IMAP polling for guardrail fires, skill approvals, out-of-funds alerts — learner wanted ability to intervene when not at terminal
+- **Validation loop defined:** Agent can iterate up to 3 times (configurable) if validation finds architectural issues, with time/cost constraints enforced — learner emphasized quality over speed but with hard limits
+- **Wallet service simplified:** Direct function imports with module isolation instead of REST API — learner prioritized security + simplicity over service architecture
+- **Code execution sandbox:** LXC containers instead of Docker (lighter weight, Linux-first) — learner preferred performance over portability
+- **Configuration approach:** .env file instead of interactive setup — learner wanted transparent, file-based config
+
+### What "what if" questions surprised them
+- **Empty states:** Learner hadn't considered what happens when there are zero tasks, zero bids — we added explicit empty state handling
+- **Skill discovery UX:** Learner hadn't specified whether agent blocks waiting for skill approval or continues with other tasks — we decided agent should continue
+- **Guardrail override:** Learner hadn't considered whether user can override guardrail fires — we added explicit override flow with confirmation
+- **Iteration limits:** Learner hadn't specified how many validation retry loops are allowed — we set default of 3 with .env override
+
+### What they pushed back on or felt strongly about
+- **Architecture quality matters:** Learner emphasized that deliverables shouldn't just meet spec, they should demonstrate good architecture (code structure, testing, modern tools) — this became a validation criterion
+- **Non-interrupting commands:** Learner was strong about user commands not disrupting async agent work — we specified command queue + possible dedicated support agent
+- **Wow moments:** Learner clearly prioritized skill discovery + security model as the two wow moments for Devpost — observability is nice but not the primary differentiator
+
+### How scope guard conversations went
+- **Custom skill generation deferred:** Learner recognized this would expand scope significantly — explicitly cut as post-hackathon feature
+- **Advanced time estimation deprioritized:** Learner accepted heuristic-based approach for MVP, deferred ML-based learning
+- **Multi-platform support cut:** Learner agreed to Linux-first design, cutting Windows/macOS to stay within 3-4 hour build window
+
+### Deepening rounds
+No formal deepening rounds — the conversation flowed as a single extended interview with iterative refinement. The learner provided detailed answers to all 15 question areas, with particular depth on edge cases (question 7), wallet service architecture (question 10), and email infrastructure (question A).
+
+### Active shaping
+- **Learner drove architectural decisions:** Wallet service as direct functions (not REST), LXC over Docker, .env config — these were all learner's choices, not suggestions
+- **Learner challenged the "support agent" idea:** Questioned whether a separate agent is needed for user commands or if command queue suffices — we left this as an open question for /spec
+- **Learner prioritized security over convenience:** 3-gate trust model, guardrail overrides requiring confirmation, credential isolation — all learner's emphases
+- **Learner recognized email as critical channel:** Added email alerts + command replies unprompted — recognized async intervention as essential for production use
