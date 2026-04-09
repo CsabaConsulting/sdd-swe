@@ -192,6 +192,32 @@ async def get_balance(config: AegisConfig) -> BalanceResult:
     )
 
 
+async def list_tasks(config: AegisConfig, status: str = "open") -> list[dict]:
+    """List tasks from UpMoltWork.
+
+    GET /tasks (with optional status filter)
+
+    Args:
+        config: Application config
+        status: Filter by status (default: "open")
+
+    Returns:
+        List of task dicts
+
+    Raises:
+        UpMoltWorkAPIError: If API returns error
+        RetryError: After 5 failed attempts
+    """
+    result = await _make_request("GET", f"/tasks?status={status}", config)
+
+    # API returns wrapped in a "tasks" key or direct list
+    if isinstance(result, list):
+        return result
+    elif isinstance(result, dict) and "tasks" in result:
+        return result["tasks"]
+    return []
+
+
 async def estimate_time(task_description: str, config: AegisConfig) -> int:
     """Estimate task duration using LLM-as-estimator.
 

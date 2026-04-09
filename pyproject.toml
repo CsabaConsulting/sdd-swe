@@ -13,4 +13,5 @@ dependencies = [
     "aiosqlite",
     "imaplib2",
     "python-dotenv",
+    "pyyaml>=6.0.3",
 ]
