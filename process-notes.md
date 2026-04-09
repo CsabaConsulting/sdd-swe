@@ -203,3 +203,12 @@ Total files created: 30+ files across src/, skills/, docs/
 Total lines added: ~2,000 LOC
 
 Architecture is solid — all PRD epics have corresponding implementations. Stubs can be fleshed out in `/iterate` phase.
+
+## /iteration
+
+- [x] **1. Validation Loop — LLM-as-Judge Implementation** ✅ DONE
+- [x] **2. Bidding Strategy — LLM Task Evaluation** ✅ DONE
+- [ ] **3. Guardrail Service — Model Loading** — DEFERRED (requires `transformers`, GPU for performance, several GB model download)
+- [ ] **4. LXC Sandbox — Container Execution** — DEFERRED (requires system-level LXC setup, not portable)
+- [x] **5. Email Alerts — IMAP Polling** ✅ DONE
+

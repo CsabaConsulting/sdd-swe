@@ -98,13 +98,13 @@ Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`
 
 ## Iteration 1 — Stub Implementation
 
-- [ ] **1. Validation Loop — LLM-as-Judge Implementation**
+- [x] **1. Validation Loop — LLM-as-Judge Implementation**
   Spec ref: `spec.md > Component Details > 6. Validation Loop`
   What to build: Replace stub in `src/skills/validation.py` with actual LLM calls. Implement `llm_check_criteria()` that sends acceptance criteria + deliverable to LLM, parses compliance check. Implement `llm_check_architecture()` that sends deliverable code, gets quality confidence score (0.0-1.0). Use OpenRouter via `src/wallet/vault.py` for credentials. Parse LLM responses with pydantic models.
   Acceptance: Validation actually calls LLM twice (criteria + architecture). Returns real confidence scores. Feedback includes specific issues found. Iteration tracking works (max 3 retries).
   Verify: Call `validate_deliverable()` with mock task + deliverable. Confirm LLM is called, confidence score returned, feedback is meaningful (not hardcoded).
 
-- [ ] **2. Bidding Strategy — LLM Task Evaluation**
+- [x] **2. Bidding Strategy — LLM Task Evaluation**
   Spec ref: `spec.md > API Contracts > Task Filtering Logic`
   What to build: Replace stub in `src/skills/bidding_strategy.py` `evaluate_task()` with actual LLM analysis. LLM analyzes task description for complexity, checks against specializations, calculates points-to-effort ratio. Returns `skill_fit` (bool), `points_to_effort` (float), `confidence` (0.0-1.0), `recommended_points` (int), `approach` (LLM-generated strategy).
   Acceptance: `evaluate_task()` calls LLM for complexity analysis. Returns realistic confidence based on task complexity. `approach` field contains LLM-generated strategy, not hardcoded text.
@@ -122,7 +122,7 @@ Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`
   Acceptance: Code executes in isolated LXC container. Network is disabled. Filesystem is read-only. Container destroyed after execution. Exit code and stdout captured. Timeout works.
   Verify: Call `execute_in_sandbox("print('hello')", "python code.py")` and confirm exit_code=0, output="hello". Confirm container is destroyed. Test timeout with long-running code.
 
-- [ ] **5. Email Alerts — IMAP Polling**
+- [x] **5. Email Alerts — IMAP Polling**
   Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`
   What to build: Replace stub in `src/alerts/email.py` with actual IMAP implementation. Connect to IMAP server using credentials from vault. Poll every 60 seconds. Parse subject lines for commands (`/approve`, `/halt`, `/force-approve`). Execute commands via `src/cli/commands.py`. Track processed message IDs for idempotency. Send alerts via IMAP.
   Acceptance: IMAP connection works. Commands parsed from subject lines. Commands executed idempotently (no replays — message ID tracking). Alerts sent via email.
