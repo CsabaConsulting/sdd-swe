@@ -19,7 +19,13 @@ dependencies = [
     "sentencepiece>=0.2.0",
     "podman>=4.10.0",
     "httpx>=0.27.0",
+    "nvidia-cublas-cu12; sys_platform == 'win32' or sys_platform == 'darwin'",
 ]
+
+[tool.uv]
+# Use CPU-only PyTorch for AMD hardware (no CUDA)
+find-links = ["https://download.pytorch.org/whl/torch_stable.html"]
+extra-index-url = ["https://download.pytorch.org/whl/cpu"]
 
 [project.optional-dependencies]
 dev = [
@@ -28,6 +34,8 @@ dev = [
     "pytest-mock>=3.12.0",
     "pytest-cov>=4.1.0",
 ]
+
+# Force CPU-only torch installation
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

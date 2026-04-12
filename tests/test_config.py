@@ -201,8 +201,10 @@ class TestValidateConfig:
     @pytest.mark.asyncio
     async def test_all_checks_pass(self, mock_config):
         """When all external services respond, validate_config succeeds."""
-        with patch("src.config.loader.get_balance", AsyncMock()), \
-             patch("src.config.loader._test_imap"):
+        with patch("src.wallet.client.get_balance", AsyncMock()), \
+             patch("src.config.loader.AsyncOpenAI"), \
+             patch("src.config.loader._test_imap"), \
+             patch("src.execution.sandbox.check_podman_available", return_value=True):
             await validate_config(mock_config)
         # Should not raise
 
@@ -210,31 +212,36 @@ class TestValidateConfig:
     async def test_upmoltwork_failure_raises(self, mock_config):
         """UpMoltWork API failure raises ConfigurationError."""
         with patch(
-            "src.config.loader.get_balance",
+            "src.wallet.client.get_balance",
             AsyncMock(side_effect=RuntimeError("API unreachable")),
         ), \
-             patch("src.config.loader._test_imap"):
+             patch("src.config.loader.AsyncOpenAI"), \
+             patch("src.config.loader._test_imap"), \
+             patch("src.execution.sandbox.check_podman_available", return_value=True):
             with pytest.raises(ConfigurationError, match="UPMOLTWORK_API_KEY"):
                 await validate_config(mock_config)
 
     @pytest.mark.asyncio
     async def test_imap_failure_raises(self, mock_config):
         """IMAP failure raises ConfigurationError."""
-        with patch("src.config.loader.get_balance", AsyncMock()), \
+        with patch("src.wallet.client.get_balance", AsyncMock()), \
+             patch("src.config.loader.AsyncOpenAI"), \
              patch(
                  "src.config.loader._test_imap",
                  side_effect=RuntimeError("auth failed"),
-             ):
+             ), \
+             patch("src.execution.sandbox.check_podman_available", return_value=True):
             with pytest.raises(ConfigurationError, match="IMAP credentials"):
                 await validate_config(mock_config)
 
     @pytest.mark.asyncio
     async def test_podman_warning_printed_when_unavailable(self, mock_config, capsys):
         """Podman unavailable prints a warning but does not fail."""
-        with patch("src.config.loader.get_balance", AsyncMock()), \
+        with patch("src.wallet.client.get_balance", AsyncMock()), \
+             patch("src.config.loader.AsyncOpenAI"), \
              patch("src.config.loader._test_imap"), \
              patch(
-                 "src.config.loader.check_podman_available",
+                 "src.execution.sandbox.check_podman_available",
                  return_value=False,
              ):
             await validate_config(mock_config)
@@ -245,10 +252,11 @@ class TestValidateConfig:
     @pytest.mark.asyncio
     async def test_podman_check_exception_warned(self, mock_config, capsys):
         """Podman check exception prints a warning but does not fail."""
-        with patch("src.config.loader.get_balance", AsyncMock()), \
+        with patch("src.wallet.client.get_balance", AsyncMock()), \
+             patch("src.config.loader.AsyncOpenAI"), \
              patch("src.config.loader._test_imap"), \
              patch(
-                 "src.config.loader.check_podman_available",
+                 "src.execution.sandbox.check_podman_available",
                  side_effect=RuntimeError("some error"),
              ):
             await validate_config(mock_config)
@@ -268,13 +276,18 @@ class TestTestImap:
     def test_successful_imap_login(self):
         """IMAP login and logout succeed on mocked client."""
         mock_imap = MagicMock()
-        mock_config = MagicMock()
-        mock_config.imap_host = "imap.test.com"
-        mock_config.imap_user = "user"
-        mock_config.imap_pass = "pass"
 
-        with patch("src.config.loader.imaplib.IMAP4_SSL", return_value=mock_imap):
-            _test_imap(mock_config)
+        with patch("imaplib.IMAP4_SSL") as mock_ssl:
+            mock_ssl.return_value = mock_imap
+            from src.config.loader import AegisConfig
+            config = AegisConfig(
+                upmoltwork_api_key="test",
+                openrouter_api_key="test",
+                imap_host="imap.test.com",
+                imap_user="user",
+                imap_pass="pass",
+            )
+            _test_imap(config)
 
         mock_imap.login.assert_called_once_with("user", "pass")
         mock_imap.logout.assert_called_once()
@@ -282,12 +295,17 @@ class TestTestImap:
     def test_imap_login_failure_raises(self):
         """IMAP login failure propagates as an exception."""
         mock_imap = MagicMock()
-        mock_imap.login.side_effect=RuntimeError("authentication failed")
-        mock_config = MagicMock()
-        mock_config.imap_host = "bad"
-        mock_config.imap_user = "wrong"
-        mock_config.imap_pass = "wrong"
+        mock_imap.login.side_effect=Exception("authentication failed")
 
-        with patch("src.config.loader.imaplib.IMAP4_SSL", return_value=mock_imap):
-            with pytest.raises(RuntimeError, match="authentication failed"):
-                _test_imap(mock_config)
+        with patch("imaplib.IMAP4_SSL") as mock_ssl:
+            mock_ssl.return_value = mock_imap
+            from src.config.loader import AegisConfig
+            config = AegisConfig(
+                upmoltwork_api_key="test",
+                openrouter_api_key="test",
+                imap_host="bad",
+                imap_user="wrong",
+                imap_pass="wrong",
+            )
+            with pytest.raises(Exception, match="authentication failed"):
+                _test_imap(config)

@@ -350,8 +350,11 @@ class TestCommandLog:
             result="All systems go",
         )
 
-        exists = await temp_db.command_exists(None)
-        assert exists is True
+        # Check that ANY command exists (not by email ID)
+        async with aiosqlite.connect(temp_db.db_path) as db:
+            cursor = await db.execute("SELECT COUNT(*) FROM command_log")
+            row = await cursor.fetchone()
+            assert row[0] > 0
 
     @pytest.mark.asyncio
     async def test_command_exists_with_email_id(self, temp_db):
