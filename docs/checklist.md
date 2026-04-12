@@ -110,17 +110,19 @@ Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`
   Acceptance: `evaluate_task()` calls LLM for complexity analysis. Returns realistic confidence based on task complexity. `approach` field contains LLM-generated strategy, not hardcoded text.
   Verify: Call `evaluate_task(mock_task)` with different task complexities. Confirm LLM is called, confidence varies by task, approach is task-specific.
 
-- [ ] **3. Guardrail Service — Model Loading**
+- [x] **3. Guardrail Service — Model Loading (Prompt Guard + Llama Guard 3)**
   Spec ref: `spec.md > Component Details > 3. Guardrail Service`
-  What to build: Replace stub in `src/guardrails/service.py` with actual model loading. Add `transformers` dependency. Load Llama Prompt Guard model for `check_input()`. Load Llama Guard 3 model for `check_output()`. Implement model caching (load once, reuse). Handle model loading failures gracefully.
-  Acceptance: Guardrail models load on startup. `check_input()` screens for prompt injection. `check_output()` classifies content via Llama Guard 3 taxonomy. Guardrail fires return specific findings.
-  Verify: Call `check_input()` with benign content (should pass). Call with injection attempt (should fire). Call `check_output()` with safe/unsafe content and confirm classification works.
+  What to build: Replace stub in `src/guardrails/service.py` with actual model loading. Add `transformers`, `torch`, `sentencepiece` dependencies. Load Llama Prompt Guard 2 (86M) for `check_input()` with iterative chunking (512 tokens, 50 overlap). Load Llama Guard 3 (8B) for `check_output()`. Implement async model caching (load once, reuse). Handle model loading failures gracefully (degraded mode).
+  Acceptance: Guardrail models load asynchronously on startup. `check_input()` screens with chunked Prompt Guard. `check_output()` classifies via Llama Guard 3. Guardrail fires halt tasks, add to review queue. Graceful fallback if models unavailable.
+  Verify: Call `check_input()` with benign content (passes). Call with injection (fires). Call `check_output()` with safe/unsafe content and confirm classification. Check `initialize_guardrails()` loads models without errors.
+  Status: IMPLEMENTED — two-stage pipeline, chunking, degraded mode fallback
 
-- [ ] **4. LXC Sandbox — Container Execution**
+- [x] **4. Code Execution Sandbox — Podman with Subprocess Fallback**
   Spec ref: `spec.md > Component Details > 5. Code Execution Sandbox`
-  What to build: Replace stub in `src/execution/sandbox.py` with actual LXC container management. Add `lxc` Python dependency. Implement container creation, security config (network disabled, read-only FS), code writing, command execution with timeout, output collection, container destruction. Handle LXC not available (fall back to warning).
-  Acceptance: Code executes in isolated LXC container. Network is disabled. Filesystem is read-only. Container destroyed after execution. Exit code and stdout captured. Timeout works.
-  Verify: Call `execute_in_sandbox("print('hello')", "python code.py")` and confirm exit_code=0, output="hello". Confirm container is destroyed. Test timeout with long-running code.
+  What to build: Replace stub in `src/execution/sandbox.py` with Podman container management via `podman-py`. Add `podman` dependency. Implement container creation with security: network disabled, read-only filesystem, resource limits (CPU, memory, file size), auto-destroy. If Podman unavailable, fall back to subprocess with `tempfile` isolation + `resource` limits + security warning. Add startup check in `src/config/loader.py`.
+  Acceptance: Code executes in Podman container when available. Network disabled, filesystem read-only. Container destroyed after execution. Exit code and stdout captured. Timeout enforced. If Podman unavailable, subprocess fallback with warnings and weaker isolation.
+  Verify: Call `execute_in_sandbox("print('hello')", "python code.py")` and confirm exit_code=0, output="hello", mode="podman" (or "subprocess" if podman not installed). Confirm cleanup. Test timeout with long-running code. Run `python -m src.config.loader` and confirm podman check passes or warns.
+  Status: IMPLEMENTED — podman-py primary, subprocess fallback with resource limits
 
 - [x] **5. Email Alerts — IMAP Polling**
   Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`

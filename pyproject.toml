@@ -14,4 +14,8 @@ dependencies = [
     "imaplib2",
     "python-dotenv",
     "pyyaml>=6.0.3",
+    "transformers>=4.45.0",
+    "torch>=2.5.0",
+    "sentencepiece>=0.2.0",
+    "podman>=4.10.0",
 ]

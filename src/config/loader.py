@@ -81,11 +81,13 @@ async def validate_config(config: AegisConfig) -> None:
     1. UpMoltWork API key by calling get_balance
     2. OpenRouter API key by making a test completion
     3. IMAP credentials by attempting login
+    4. Podman availability for sandbox (warns if unavailable)
 
     Raises:
         ConfigurationError: If any validation check fails
     """
     errors = []
+    warnings = []
 
     # 1. Validate UPMOLTWORK_API_KEY
     try:
@@ -115,8 +117,21 @@ async def validate_config(config: AegisConfig) -> None:
     except Exception as e:
         errors.append(f"IMAP credentials invalid: {e}")
 
+    # 4. Check Podman availability (non-fatal, just warns)
+    try:
+        from src.execution.sandbox import check_podman_available
+        podman_ok = await check_podman_available()
+        if not podman_ok:
+            warnings.append("WARNING: Podman not available — sandbox will use subprocess isolation (weaker security)")
+    except Exception as e:
+        warnings.append(f"WARNING: Podman check failed: {e}")
+
     if errors:
         raise ConfigurationError(f"Configuration validation failed:\n" + "\n".join(errors))
+
+    # Print warnings (non-fatal)
+    for warning in warnings:
+        print(f"  ⚠ {warning}")
 
 
 def _test_imap(config: AegisConfig) -> None:
@@ -145,6 +160,14 @@ async def main():
         print("\nValidating connectivity...")
         await validate_config(config)
         print("✓ All validation checks passed")
+
+        # Check sandbox mode
+        from src.execution.sandbox import check_podman_available
+        podman_ok = await check_podman_available()
+        if podman_ok:
+            print("  Sandbox mode: Podman (full isolation)")
+        else:
+            print("  Sandbox mode: subprocess (limited isolation)")
     except ConfigurationError as e:
         print(f"✗ Configuration error: {e}")
         raise

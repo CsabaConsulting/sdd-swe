@@ -249,6 +249,21 @@ class AegisStore:
             return row[0] > 0
 
 
+def get_store_sync(db_path: str = "aegis.db") -> AegisStore:
+    """Get a store instance for synchronous access.
+
+    Note: AegisStore methods are async, but can be called from sync code
+    using asyncio.run() wrapper. This function provides the store instance.
+
+    Args:
+        db_path: Path to SQLite database file
+
+    Returns:
+        AegisStore instance
+    """
+    return AegisStore(db_path=db_path)
+
+
 async def main():
     """Test mode: create database and verify tables."""
     import sys

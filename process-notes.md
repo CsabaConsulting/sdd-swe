@@ -204,11 +204,40 @@ Total lines added: ~2,000 LOC
 
 Architecture is solid — all PRD epics have corresponding implementations. Stubs can be fleshed out in `/iterate` phase.
 
-## /iteration
+## /iteration (Round 1)
 
 - [x] **1. Validation Loop — LLM-as-Judge Implementation** ✅ DONE
 - [x] **2. Bidding Strategy — LLM Task Evaluation** ✅ DONE
-- [ ] **3. Guardrail Service — Model Loading** — DEFERRED (requires `transformers`, GPU for performance, several GB model download)
-- [ ] **4. LXC Sandbox — Container Execution** — DEFERRED (requires system-level LXC setup, not portable)
+- [x] **3. Guardrail Service — Model Loading** ✅ DONE (was DEFERRED, now implemented)
+- [x] **4. Code Execution Sandbox — Podman with Fallback** ✅ DONE (was DEFERRED, LXC→Podman pivot, now implemented)
 - [x] **5. Email Alerts — IMAP Polling** ✅ DONE
+
+### Implementation Notes for Items 3 & 4
+
+**Guardrail Service (Item 3):**
+- **Architecture**: Two-stage pipeline — Prompt Guard 2 (86M, fast input screening) + Llama Guard 3 (8B, deep classification)
+- **Chunking strategy**: 512 token chunks with 50 token overlap for Prompt Guard (handles its hard token limit)
+- **Degraded mode**: If models fail to load (OOM, network), service runs in pass-through mode with warnings — agent doesn't crash
+- **Model loading**: Async, singleton pattern, cached on first use
+- **Dependencies added**: `transformers>=4.45.0`, `torch>=2.5.0`, `sentencepiece>=0.2.0`
+- **Guardrail fire handling**: Updates task status to HALTED, adds to review_queue, logs warning, triggers email via review poller
+
+**Sandbox (Item 4):**
+- **Original plan**: LXC containers — pivoted to Podman (user request)
+- **Final design**: Podman (daemonless, rootless) with subprocess fallback
+- **Security**: Podman mode gets full isolation (network disabled, read-only FS, resource limits). Subprocess mode gets weaker isolation (tempfile, resource limits: CPU, memory 1GB, file size 100MB, no core dumps)
+- **Startup check**: `validate_config()` in `src/config/loader.py` now checks podman availability, prints warning if missing
+- **Dependencies added**: `podman>=4.10.0`
+- **Fallback behavior**: Graceful — if podman fails or not installed, automatically uses subprocess with security warning
+
+**Key design decisions:**
+1. **Podman over LXC**: User preference for daemonless, rootless alternative to Docker
+2. **Graceful degradation**: Both services continue in degraded mode if dependencies unavailable — doesn't block agent
+3. **Async model loading**: Guardrail models loaded asynchronously to avoid blocking startup
+4. **Chunking with overlap**: 512-token chunks (Prompt Guard limit) with 50-token overlap catches injections at boundaries
+
+### What Wasn't Done
+- LXC containers — explicitly replaced by Podman
+- GPU acceleration for guardrails — models load on CPU by default, GPU detection exists but not forced
+- Real guardrail model download verification — models downloaded from HF Hub on first use, no pre-caching step
 
