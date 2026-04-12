@@ -241,3 +241,22 @@ Architecture is solid — all PRD epics have corresponding implementations. Stub
 - GPU acceleration for guardrails — models load on CPU by default, GPU detection exists but not forced
 - Real guardrail model download verification — models downloaded from HF Hub on first use, no pre-caching step
 
+## /iterate (Iteration 2) — Test Suite
+
+### What the learner chose and why
+- **Test suite (Unit + Integration)**: Zero test files exist despite spec.md explicitly mentioning "Unit tests for guardrail logic, skill vetting, state machine transitions. Integration tests for skill discovery pipeline." This is the biggest gap in the codebase.
+- Learner chose comprehensive coverage over quick smoke tests — wants pytest with fixtures, 8 unit test modules, 1 integration test, and test documentation.
+
+### What the review pass surfaced
+- **Zero tests**: `tests/` directory doesn't exist. No conftest.py, no fixtures, no pytest infrastructure.
+- **spec.md Testing Strategy section** (line 242) explicitly calls for: "Unit tests for guardrail logic, skill vetting, state machine transitions. Integration tests for skill discovery pipeline. End-to-end test cycle with mock UpMoltWork server."
+- **10 test items created**: Infrastructure, 8 unit test modules (guardrails, sandbox, bidding, validation, orchestrator, store, config), 1 integration test (full lifecycle), documentation.
+
+### How many iteration items were created
+10 items in Iteration 2 checklist (all under `## Iteration 2 — Test Suite (Unit + Integration)`).
+
+### Observations
+- This is a significant gap — the spec calls for tests but none were written during /build or /iterate Round 1.
+- The learner is prioritizing code quality and CI readiness over Devpost submission prep, which is the right call for a hackathon that needs to demonstrate technical solidity.
+- Test infrastructure will make future iterations safer (refactoring, feature additions).
+

@@ -129,7 +129,73 @@ Spec ref: `spec.md > Error Handling & Retry Strategy > Email Command Processing`
   What to build: Replace stub in `src/alerts/email.py` with actual IMAP implementation. Connect to IMAP server using credentials from vault. Poll every 60 seconds. Parse subject lines for commands (`/approve`, `/halt`, `/force-approve`). Execute commands via `src/cli/commands.py`. Track processed message IDs for idempotency. Send alerts via IMAP.
   Acceptance: IMAP connection works. Commands parsed from subject lines. Commands executed idempotently (no replays — message ID tracking). Alerts sent via email.
   Verify: Configure `.env` with IMAP credentials. Run agent. Send email with subject "Aegis: /approve test-skill". Confirm command executed within 60s. Send same email again and confirm it's ignored (idempotency).
-  Spec ref: `spec.md > Architecture Overview` (for project description) and `docs/prd.md` (for user stories)
-  What to build: Prepare Devpost submission page: (1) Write compelling project description based on scope + PRD. (2) Take 5 screenshots: terminal UI with tasks, side column guardrail alert, skill approval request, `/skills` command output, Phoenix trace view. (3) Create GitHub repo if not exists, commit all code, push to GitHub. (4) Prepare submission narrative: core story, "wow moment" (3-gate skill verification), technical approach. (5) Optional: record 2-min demo video.
-  Acceptance: Devpost submission page complete with description, 5+ screenshots, GitHub repo link, core story, and "wow moment" clearly articulated. Code pushed to GitHub.
-  Verify: Open Devpost submission page in browser and confirm all sections filled. Click GitHub link and confirm code is accessible. Review screenshots and confirm they show key features.
+
+## Iteration 2 — Test Suite (Unit + Integration)
+
+- [x] **1. Test Infrastructure + Fixture Setup**
+  Spec ref: New — not in original spec
+  What to build: Create `tests/` directory structure with `conftest.py` (shared fixtures: mock config, temp databases, mock API client), `pytest.ini` config, test utilities. Add `pytest`, `pytest-asyncio`, `pytest-mock` to dev dependencies in `pyproject.toml`. Create `tests/utils.py` for helper functions.
+  Acceptance: `pytest -v` discovers and runs all tests. Fixtures are reusable across test modules. Temp databases cleaned up after each test. Mock config provides valid test credentials without real `.env` file.
+  Verify: Run `pytest -v` from project root — all collection works, fixtures accessible. Confirm temp DB created/destroyed per test.
+
+- [x] **2. Unit Tests — Guardrail Service**
+  Spec ref: `spec.md > Component Details > 3. Guardrail Service`
+  What to build: Test `src/guardrails/service.py`: `_chunk_content()` with 512-token chunks + 50 overlap, `_check_prompt_guard()` pass/fire scenarios, `_check_llama_guard()` pass/fire scenarios, degraded mode (models not loaded), `on_guardrail_fire()` (updates task, adds to review_queue). Mock `transformers`/`torch` to avoid model downloads.
+  Acceptance: Chunking splits long content correctly. Guardrail checks return correct pass/fail with confidence scores. Degraded mode passes with warning. Fire handler updates SQLite correctly. All tests run without actual model loading (<1s each).
+  Verify: `pytest tests/test_guardrails.py -v` — all 8-10 tests pass. Confirm no model downloads during tests. Check SQLite updates after fire test.
+
+- [x] **3. Unit Tests — Sandbox Execution**
+  Spec ref: `spec.md > Component Details > 5. Code Execution Sandbox`
+  What to build: Test `src/execution/sandbox.py`: Podman execution (mock `podman-py`), subprocess fallback, timeout enforcement (kill after 300s), resource limits, cleanup (temp dir removal). Test `check_podman_available()` with/without podman. Mock subprocess for safe execution.
+  Acceptance: Podman path returns `sandbox_mode="podman"`. Subprocess path returns `sandbox_mode="subprocess"`. Timeout kills process. Temp directory cleaned up after execution. Podman check returns correct bool.
+  Verify: `pytest tests/test_sandbox.py -v` — all tests pass. Confirm no orphan containers/temp dirs after tests. Test timeout with mock long-running command.
+  Status: IMPLEMENTED — tests written, mocking podman-py and subprocess
+
+- [x] **4. Unit Tests — Bidding Strategy**
+  Spec ref: `spec.md > API Contracts > Task Filtering Logic` and `Time Estimation Heuristic`
+  What to build: Test `src/skills/bidding_strategy.py`: `evaluate_task()` with mock LLM analysis, `calculate_bid()` output format, skill_fit logic (specialization match/mismatch), confidence scoring, points_to_effort calculation. Mock OpenRouter calls with `pytest-mock`.
+  Acceptance: `evaluate_task()` returns realistic skill_fit, confidence varies by task complexity. `calculate_bid()` returns correct format (price_points, estimated_minutes, approach). Specialization filtering works correctly.
+  Verify: `pytest tests/test_bidding.py -v` — all tests pass. Mock LLM returns predictable responses. No real API calls made.
+  Status: IMPLEMENTED — tests mock LLM, evaluate bid strategies
+
+- [x] **5. Unit Tests — Validation Loop**
+  Spec ref: `spec.md > Component Details > 6. Validation Loop`
+  What to build: Test `src/skills/validation.py`: `validate_deliverable()` with criteria + architecture checks, iteration tracking (0→3), max iteration behavior (submit after 3 even if quality fails), confidence threshold enforcement (0.8 default). Mock LLM calls.
+  Acceptance: Validation passes when both criteria met + quality >= threshold. Fails and provides feedback when criteria missing. After 3 iterations, submits anyway with note. Confidence threshold configurable.
+  Verify: `pytest tests/test_validation.py -v` — all tests pass. Confirm iteration count tracked in SQLite. Test threshold edge cases (0.79 vs 0.80).
+  Status: IMPLEMENTED — tests mock validation LLM, iteration tracking
+
+- [x] **6. Unit Tests — Orchestrator State Machine**
+  Spec ref: `spec.md > Component Details > 1. Orchestrator Engine`
+  What to build: Test `src/orchestrator/engine.py`: Phase transitions (DISCOVERY→RESEARCH→DELIVERY→VALIDATION→SUBMISSION), skill loading/unloading during transitions, task status updates in SQLite, halt scenarios (guardrail fire). Verify phase transition log entries.
+  Acceptance: Phase transitions update task phase in SQLite. Old skill unloaded, new skill loaded. Invalid transitions rejected. Halt scenarios update status to HALTED. Phase log entries created.
+  Verify: `pytest tests/test_orchestrator.py -v` — all tests pass. Confirm SQLite reflects correct phase after transitions. Check skill load/unload tracking.
+  Status: IMPLEMENTED — tests mock orchestrator phases
+
+- [x] **7. Unit Tests — SQLite Store**
+  Spec ref: `spec.md > State Management (SQLite Schema)`
+  What to build: Test `src/db/store.py`: CRUD operations (add_task, update_task, get_task), skill operations, review_queue operations (add, get, resolve), command_log idempotency (email_message_id uniqueness), status queries (get_tasks_by_status). Use temp databases per test.
+  Acceptance: All CRUD operations work correctly. Indexes exist for status/phase queries. Email message ID uniqueness enforced (IntegrityError on duplicate). Review queue operations return correct items. Temp databases cleaned up.
+  Verify: `pytest tests/test_store.py -v` — all tests pass. Confirm indexes created in schema. Test idempotency by inserting duplicate email IDs (should raise).
+  Status: IMPLEMENTED — tests use temp_db fixture, CRUD + idempotency
+
+- [x] **8. Unit Tests — Config Loader**
+  Spec ref: `spec.md > Configuration (.env)`
+  What to build: Test `src/config/loader.py`: .env parsing with defaults, missing var errors (ConfigurationError raised), IMAP connection test (mocked), podman check (mocked), `validate_config()` flow. Test both valid and invalid configs.
+  Acceptance: Missing required vars raise ConfigurationError with clear message. Optional vars fall back to defaults. Validation tests API connectivity (mocked). Podman check returns correct bool + warning.
+  Verify: `pytest tests/test_config.py -v` — all tests pass. Confirm error messages are user-friendly. Test with partial .env (some vars missing).
+  Status: IMPLEMENTED — tests mock config validation
+
+- [x] **9. Integration Test — Full Task Lifecycle**
+  Spec ref: `spec.md > Data Flow Diagrams > Diagram 1: Task Discovery → Submission Lifecycle`
+  What to build: End-to-end test with mock UpMoltWork API: Create mock task in SQLite → Discovery (evaluate_task) → Bidding (mock accept) → Research → Delivery → Validation → Submission. Verify SQLite state changes at each phase. Use `pytest-asyncio`, mock HTTP responses with `respx` or `httpx.MockTransport`.
+  Acceptance: Full lifecycle completes without errors. Task progresses through all 5 phases. SQLite reflects correct status at each step. Wallet API calls mocked successfully. Validation passes or loops correctly.
+  Verify: `pytest tests/test_integration_lifecycle.py -v` — single integration test passes. Takes <30s. Confirms end-to-end flow works with mocked external dependencies.
+  Status: IMPLEMENTED — integration test mocks full lifecycle
+
+- [x] **10. Test Documentation + CI Readiness**
+  Spec ref: New — not in original spec (but implied by `spec.md > Testing Strategy`)
+  What to build: Create `tests/README.md` explaining how to run tests (`pytest -v`), test structure, fixture usage. Add test script to `pyproject.toml`: `[project.scripts] pytest = "pytest"` or `[tool.pytest.ini_options]`. Add `pytest-cov` for coverage report if easy. Verify all tests pass with `pytest -v`.
+  Acceptance: `pytest -v` from project root runs all tests successfully. README explains test setup clearly. Coverage report shows >70% coverage of core modules (optional). No test failures.
+  Verify: `cd /home/csaba/repos/SDD/sdd-swe && pytest -v --tb=short` — all tests pass. Coverage report generated if configured. New developer can run tests following README.
+  Status: IMPLEMENTED — README.md created, pyproject.toml configured
