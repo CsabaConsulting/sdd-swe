@@ -202,8 +202,8 @@ class TestValidateConfig:
     async def test_all_checks_pass(self, mock_config):
         """When all external services respond, validate_config succeeds."""
         with patch("src.wallet.client.get_balance", AsyncMock()), \
-             patch("src.config.loader.AsyncOpenAI"), \
-             patch("src.config.loader._test_imap"), \
+             patch("openai.AsyncOpenAI"), \
+             patch("imaplib.IMAP4_SSL"), \
              patch("src.execution.sandbox.check_podman_available", return_value=True):
             await validate_config(mock_config)
         # Should not raise
@@ -215,8 +215,8 @@ class TestValidateConfig:
             "src.wallet.client.get_balance",
             AsyncMock(side_effect=RuntimeError("API unreachable")),
         ), \
-             patch("src.config.loader.AsyncOpenAI"), \
-             patch("src.config.loader._test_imap"), \
+             patch("openai.AsyncOpenAI"), \
+             patch("imaplib.IMAP4_SSL"), \
              patch("src.execution.sandbox.check_podman_available", return_value=True):
             with pytest.raises(ConfigurationError, match="UPMOLTWORK_API_KEY"):
                 await validate_config(mock_config)
@@ -225,9 +225,9 @@ class TestValidateConfig:
     async def test_imap_failure_raises(self, mock_config):
         """IMAP failure raises ConfigurationError."""
         with patch("src.wallet.client.get_balance", AsyncMock()), \
-             patch("src.config.loader.AsyncOpenAI"), \
+             patch("openai.AsyncOpenAI"), \
              patch(
-                 "src.config.loader._test_imap",
+                 "imaplib.IMAP4_SSL",
                  side_effect=RuntimeError("auth failed"),
              ), \
              patch("src.execution.sandbox.check_podman_available", return_value=True):
@@ -238,8 +238,8 @@ class TestValidateConfig:
     async def test_podman_warning_printed_when_unavailable(self, mock_config, capsys):
         """Podman unavailable prints a warning but does not fail."""
         with patch("src.wallet.client.get_balance", AsyncMock()), \
-             patch("src.config.loader.AsyncOpenAI"), \
-             patch("src.config.loader._test_imap"), \
+             patch("openai.AsyncOpenAI"), \
+             patch("imaplib.IMAP4_SSL"), \
              patch(
                  "src.execution.sandbox.check_podman_available",
                  return_value=False,
@@ -253,8 +253,8 @@ class TestValidateConfig:
     async def test_podman_check_exception_warned(self, mock_config, capsys):
         """Podman check exception prints a warning but does not fail."""
         with patch("src.wallet.client.get_balance", AsyncMock()), \
-             patch("src.config.loader.AsyncOpenAI"), \
-             patch("src.config.loader._test_imap"), \
+             patch("openai.AsyncOpenAI"), \
+             patch("imaplib.IMAP4_SSL"), \
              patch(
                  "src.execution.sandbox.check_podman_available",
                  side_effect=RuntimeError("some error"),

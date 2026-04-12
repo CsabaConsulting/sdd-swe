@@ -44,7 +44,7 @@ def _get_base_url() -> str:
 
 @retry(
     stop=stop_after_attempt(5),
-    wait=wait_exponential_jitter(multiplier=1, min=1, max=16, jitter=1),
+    wait=wait_exponential_jitter(initial=1, max=16, jitter=1),
     retry=retry_if_exception_type((httpx.HTTPError, ConnectionError)),
     reraise=True
 )

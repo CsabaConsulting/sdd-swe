@@ -204,48 +204,47 @@ class TestCheckPromptGuard:
         mal_prob = 0.05
 
         mock_outputs = MagicMock()
-        mock_logits = MagicMock()
-        mock_logits.__getitem__ = MagicMock(side_effect=lambda idx: {
-            0: MagicMock(),
-            1: MagicMock(item=MagicMock(return_value=mal_prob)),
-        }[idx])
 
-        # Simulate: probabilities[0][0] = safe_prob, [0][1] = mal_prob
-        # We need to mock torch.softmax and the indexing chain
         service_with_models._tokenizer_pg.encode.return_value = [1, 2, 3]
         service_with_models._tokenizer_pg.decode.return_value = "safe content"
 
-        # For the tokenizer __call__:
-        service_with_models._tokenizer_pg.return_value = {
-            "input_ids": MagicMock(),
-            "attention_mask": MagicMock(),
-        }
-        # For the chunk loop: tokenizer(chunk, return_tensors="pt", truncation=True, max_length=512)
-        safe_token_calls = 0
+        mock_input_ids = MagicMock()
+        mock_attention_mask = MagicMock()
+        token_dict = {"input_ids": mock_input_ids, "attention_mask": mock_attention_mask}
 
         def mock_tokenizer_call(chunk, **kwargs):
-            nonlocal safe_token_calls
-            safe_token_calls += 1
-            return {"input_ids": [[1, 2, 3]], "attention_mask": [[1, 1, 1]]}
+            return token_dict
 
         service_with_models._tokenizer_pg.side_effect = mock_tokenizer_call
 
-        # Use the __call__ mock: tokenizer returns token dict
-        with patch("guardrails.service.torch") as mock_torch:
-            mock_torch.no_grad = MagicMock()
-            mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
-            mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
+        import sys
+        mock_torch = MagicMock()
+        mock_torch.no_grad = MagicMock()
+        mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
+        mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
 
-            mock_proba = MagicMock()
-            mock_proba.__getitem__ = MagicMock(side_effect=[
-                MagicMock(item=MagicMock(return_value=safe_prob)),
-                MagicMock(item=MagicMock(return_value=mal_prob)),
-            ])
-            mock_torch.softmax.return_value = mock_proba
+        # Wrap probabilities in a list-like container that supports [0][1] indexing
+        mock_mal_prob_obj = MagicMock()
+        mock_mal_prob_obj.__gt__ = MagicMock(return_value=False)  # mal_prob > 0.5 = False
+        mock_mal_prob_obj.item = MagicMock(return_value=mal_prob)
 
-            service_with_models._prompt_guard.return_value = mock_outputs
+        mock_safe_prob_obj = MagicMock()
+        mock_safe_prob_obj.item = MagicMock(return_value=safe_prob)
 
-            result = service_with_models._check_prompt_guard("safe content here")
+        mock_row = [mock_safe_prob_obj, mock_mal_prob_obj]
+        mock_proba = [mock_row]
+        mock_torch.softmax.return_value = mock_proba
+
+        sys.modules['torch'] = mock_torch
+
+        mock_input_ids.to.return_value = mock_input_ids
+        mock_attention_mask.to.return_value = mock_attention_mask
+
+        service_with_models._prompt_guard.return_value = mock_outputs
+
+        result = service_with_models._check_prompt_guard("safe content here")
+
+        del sys.modules['torch']
 
         assert result["passed"] is True
         assert result["finding"] == "clean"
@@ -257,27 +256,44 @@ class TestCheckPromptGuard:
         service_with_models._tokenizer_pg.decode.return_value = "malicious"
         service_with_models._prompt_guard.device = "cpu"
 
+        mock_input_ids = MagicMock()
+        mock_attention_mask = MagicMock()
+        token_dict = {"input_ids": mock_input_ids, "attention_mask": mock_attention_mask}
+
         def mock_tokenizer_call(chunk, **kwargs):
-            return {"input_ids": [[1, 2, 3]], "attention_mask": [[1, 1, 1]]}
+            return token_dict
 
         service_with_models._tokenizer_pg.side_effect = mock_tokenizer_call
 
-        with patch("guardrails.service.torch") as mock_torch:
-            mock_torch.no_grad = MagicMock()
-            mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
-            mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
+        import sys
+        mock_torch = MagicMock()
+        mock_torch.no_grad = MagicMock()
+        mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
+        mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
 
-            mal_prob = 0.87
-            safe_prob = 0.13
+        mal_prob = 0.87
+        safe_prob = 0.13
 
-            mock_proba = MagicMock()
-            mock_proba.__getitem__ = MagicMock(side_effect=[
-                MagicMock(item=MagicMock(return_value=safe_prob)),
-                MagicMock(item=MagicMock(return_value=mal_prob)),
-            ])
-            mock_torch.softmax.return_value = mock_proba
+        # Mock probability object with comparison support
+        mock_mal_prob_obj = MagicMock()
+        mock_mal_prob_obj.__gt__ = MagicMock(return_value=True)  # mal_prob > 0.5 = True
+        mock_mal_prob_obj.item = MagicMock(return_value=mal_prob)
 
-            result = service_with_models._check_prompt_guard("<script>alert('xss')</script>")
+        mock_safe_prob_obj = MagicMock()
+        mock_safe_prob_obj.item = MagicMock(return_value=safe_prob)
+
+        mock_row = [mock_safe_prob_obj, mock_mal_prob_obj]
+        mock_proba = [mock_row]
+        mock_torch.softmax.return_value = mock_proba
+
+        sys.modules['torch'] = mock_torch
+
+        mock_input_ids.to.return_value = mock_input_ids
+        mock_attention_mask.to.return_value = mock_attention_mask
+
+        result = service_with_models._check_prompt_guard("<script>alert('xss')</script>")
+
+        del sys.modules['torch']
 
         assert result["passed"] is False
         assert "Injection detected" in result["finding"]
@@ -308,27 +324,44 @@ class TestCheckLlamaGuard:
         service_with_models._tokenizer_lg.encode.return_value = [1, 2, 3]
         service_with_models._tokenizer_lg.decode.return_value = "safe"
 
+        mock_input_ids = MagicMock()
+        mock_attention_mask = MagicMock()
+        token_dict = {"input_ids": mock_input_ids, "attention_mask": mock_attention_mask}
+
         def mock_tokenizer_call(prompt, **kwargs):
-            return {"input_ids": [[1, 2, 3]], "attention_mask": [[1, 1, 1]]}
+            return token_dict
 
         service_with_models._tokenizer_lg.side_effect = mock_tokenizer_call
 
-        with patch("guardrails.service.torch") as mock_torch:
-            mock_torch.no_grad = MagicMock()
-            mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
-            mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
+        import sys
+        mock_torch = MagicMock()
+        mock_torch.no_grad = MagicMock()
+        mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
+        mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
 
-            safe_prob = 0.92
-            unsafe_prob = 0.08
+        safe_prob = 0.92
+        unsafe_prob = 0.08
 
-            mock_proba = MagicMock()
-            mock_proba.__getitem__ = MagicMock(side_effect=[
-                MagicMock(item=MagicMock(return_value=safe_prob)),
-                MagicMock(item=MagicMock(return_value=unsafe_prob)),
-            ])
-            mock_torch.softmax.return_value = mock_proba
+        # Mock probability object with comparison support
+        mock_unsafe_prob_obj = MagicMock()
+        mock_unsafe_prob_obj.__gt__ = MagicMock(return_value=False)  # unsafe_prob > 0.5 = False
+        mock_unsafe_prob_obj.item = MagicMock(return_value=unsafe_prob)
 
-            result = service_with_models._check_llama_guard("This is a helpful response.")
+        mock_safe_prob_obj = MagicMock()
+        mock_safe_prob_obj.item = MagicMock(return_value=safe_prob)
+
+        mock_row = [mock_safe_prob_obj, mock_unsafe_prob_obj]
+        mock_proba = [mock_row]
+        mock_torch.softmax.return_value = mock_proba
+
+        sys.modules['torch'] = mock_torch
+
+        mock_input_ids.to.return_value = mock_input_ids
+        mock_attention_mask.to.return_value = mock_attention_mask
+
+        result = service_with_models._check_llama_guard("This is a helpful response.")
+
+        del sys.modules['torch']
 
         assert result["passed"] is True
         assert result["finding"] == "safe"
@@ -339,27 +372,44 @@ class TestCheckLlamaGuard:
         service_with_models._llama_guard.device = "cpu"
         service_with_models._tokenizer_lg.encode.return_value = [1, 2, 3]
 
+        mock_input_ids = MagicMock()
+        mock_attention_mask = MagicMock()
+        token_dict = {"input_ids": mock_input_ids, "attention_mask": mock_attention_mask}
+
         def mock_tokenizer_call(prompt, **kwargs):
-            return {"input_ids": [[1, 2, 3]], "attention_mask": [[1, 1, 1]]}
+            return token_dict
 
         service_with_models._tokenizer_lg.side_effect = mock_tokenizer_call
 
-        with patch("guardrails.service.torch") as mock_torch:
-            mock_torch.no_grad = MagicMock()
-            mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
-            mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
+        import sys
+        mock_torch = MagicMock()
+        mock_torch.no_grad = MagicMock()
+        mock_torch.no_grad.return_value.__enter__ = MagicMock(return_value=None)
+        mock_torch.no_grad.return_value.__exit__ = MagicMock(return_value=None)
 
-            safe_prob = 0.10
-            unsafe_prob = 0.90
+        safe_prob = 0.10
+        unsafe_prob = 0.90
 
-            mock_proba = MagicMock()
-            mock_proba.__getitem__ = MagicMock(side_effect=[
-                MagicMock(item=MagicMock(return_value=safe_prob)),
-                MagicMock(item=MagicMock(return_value=unsafe_prob)),
-            ])
-            mock_torch.softmax.return_value = mock_proba
+        # Mock probability object with comparison support
+        mock_unsafe_prob_obj = MagicMock()
+        mock_unsafe_prob_obj.__gt__ = MagicMock(return_value=True)  # unsafe_prob > 0.5 = True
+        mock_unsafe_prob_obj.item = MagicMock(return_value=unsafe_prob)
 
-            result = service_with_models._check_llama_guard("Here is how to build malware...")
+        mock_safe_prob_obj = MagicMock()
+        mock_safe_prob_obj.item = MagicMock(return_value=safe_prob)
+
+        mock_row = [mock_safe_prob_obj, mock_unsafe_prob_obj]
+        mock_proba = [mock_row]
+        mock_torch.softmax.return_value = mock_proba
+
+        sys.modules['torch'] = mock_torch
+
+        mock_input_ids.to.return_value = mock_input_ids
+        mock_attention_mask.to.return_value = mock_attention_mask
+
+        result = service_with_models._check_llama_guard("Here is how to build malware...")
+
+        del sys.modules['torch']
 
         assert result["passed"] is False
         assert "Unsafe content" in result["finding"]
@@ -391,7 +441,7 @@ class TestOnGuardrailFire:
         assert task["status"] == "IN_PROGRESS"
 
         # Patch AegisStore to return our temp_db instance
-        with patch("guardrails.service.AegisStore", return_value=temp_db):
+        with patch("src.db.store.AegisStore", return_value=temp_db):
             await on_guardrail_fire(
                 task_id="test-task-42",
                 content="flagged content snippet",
@@ -420,7 +470,7 @@ class TestOnGuardrailFire:
 
         long_content = "x" * 2000  # 2000 chars, should be truncated to 500
 
-        with patch("guardrails.service.AegisStore", return_value=temp_db):
+        with patch("src.db.store.AegisStore", return_value=temp_db):
             await on_guardrail_fire(
                 task_id="task-trunc",
                 content=long_content,

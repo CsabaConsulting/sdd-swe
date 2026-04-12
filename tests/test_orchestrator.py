@@ -59,8 +59,9 @@ class TestPhaseTransitions:
     async def test_transition_discovers_task_phase_update(self, engine, mock_store):
         """Transition to RESEARCH updates the task phase in SQLite."""
         await mock_store.add_task(
-            "task-1", title="Test", status="BIDDING", phase="PHASE_DISCOVERY"
+            "task-1", title="Test", status="BIDDING"
         )
+        await mock_store.update_task("task-1", phase="PHASE_DISCOVERY")
 
         with patch("src.orchestrator.engine.load_skill"), \
              patch("src.orchestrator.engine.unload_skill"):
@@ -187,12 +188,12 @@ class TestRunDiscoveryCycle:
 
         mock_estimate = AsyncMock(return_value=120)
 
-        with patch("src.orchestrator.engine.list_tasks", mock_tasks_api), \
-             patch("src.orchestrator.engine.should_evaluate_task", return_value=True), \
-             patch("src.orchestrator.engine.evaluate_task",
+        with patch("src.skills.bidding_strategy.should_evaluate_task", return_value=True), \
+             patch("src.skills.bidding_strategy.evaluate_task",
                    return_value=mock_evaluation), \
-             patch("src.orchestrator.engine.estimate_time", mock_estimate), \
-             patch("src.orchestrator.engine.place_bid") as mock_bid:
+             patch("src.wallet.client.list_tasks", mock_tasks_api), \
+             patch("src.wallet.client.estimate_time", mock_estimate), \
+             patch("src.wallet.client.place_bid") as mock_bid:
             await engine.run_discovery_cycle(mock_config)
 
         mock_bid.assert_called_once_with(
@@ -208,13 +209,13 @@ class TestRunDiscoveryCycle:
         """Tasks with confidence <= 0.6 are skipped."""
         mock_tasks_api = AsyncMock(return_value=[{"id": "skip-me"}])
 
-        with patch("src.orchestrator.engine.list_tasks", mock_tasks_api), \
-             patch("src.orchestrator.engine.should_evaluate_task", return_value=True), \
-             patch("src.orchestrator.engine.evaluate_task",
+        with patch("src.skills.bidding_strategy.should_evaluate_task", return_value=True), \
+             patch("src.skills.bidding_strategy.evaluate_task",
                    return_value={"skill_fit": True, "confidence": 0.5,
                                  "recommended_points": 100, "approach": "x"}), \
-             patch("src.orchestrator.engine.place_bid") as mock_bid, \
-             patch("src.orchestrator.engine.estimate_time"):
+             patch("src.wallet.client.list_tasks", mock_tasks_api), \
+             patch("src.wallet.client.place_bid") as mock_bid, \
+             patch("src.wallet.client.estimate_time"):
             await engine.run_discovery_cycle(mock_config)
 
         mock_bid.assert_not_called()
@@ -224,13 +225,13 @@ class TestRunDiscoveryCycle:
         """Tasks with skill_fit=False are skipped."""
         mock_tasks_api = AsyncMock(return_value=[{"id": "no-fit"}])
 
-        with patch("src.orchestrator.engine.list_tasks", mock_tasks_api), \
-             patch("src.orchestrator.engine.should_evaluate_task", return_value=True), \
-             patch("src.orchestrator.engine.evaluate_task",
+        with patch("src.skills.bidding_strategy.should_evaluate_task", return_value=True), \
+             patch("src.skills.bidding_strategy.evaluate_task",
                    return_value={"skill_fit": False, "confidence": 0.9,
                                  "recommended_points": 100, "approach": "x"}), \
-             patch("src.orchestrator.engine.place_bid") as mock_bid, \
-             patch("src.orchestrator.engine.estimate_time"):
+             patch("src.wallet.client.list_tasks", mock_tasks_api), \
+             patch("src.wallet.client.place_bid") as mock_bid, \
+             patch("src.wallet.client.estimate_time"):
             await engine.run_discovery_cycle(mock_config)
 
         mock_bid.assert_not_called()
@@ -256,13 +257,13 @@ class TestRunDiscoveryCycle:
             "approach": "Approach",
         }
 
-        with patch("src.orchestrator.engine.list_tasks", mock_tasks_api), \
-             patch("src.orchestrator.engine.should_evaluate_task", return_value=True), \
-             patch("src.orchestrator.engine.evaluate_task",
+        with patch("src.skills.bidding_strategy.should_evaluate_task", return_value=True), \
+             patch("src.skills.bidding_strategy.evaluate_task",
                    return_value=mock_evaluation), \
-             patch("src.orchestrator.engine.estimate_time",
+             patch("src.wallet.client.list_tasks", mock_tasks_api), \
+             patch("src.wallet.client.estimate_time",
                    AsyncMock(return_value=60)), \
-             patch("src.orchestrator.engine.place_bid"):
+             patch("src.wallet.client.place_bid"):
             await engine.run_discovery_cycle(mock_config)
 
         task = await mock_store.get_task("store-task-1")

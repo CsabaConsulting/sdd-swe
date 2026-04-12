@@ -136,6 +136,7 @@ async def validate_config(config: AegisConfig) -> None:
 
 def _test_imap(config: AegisConfig) -> None:
     """Test IMAP connection (sync, runs in executor)."""
+    import imaplib
     client = imaplib.IMAP4_SSL(config.imap_host)
     client.login(config.imap_user, config.imap_pass)
     client.logout()
